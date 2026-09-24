@@ -54,8 +54,11 @@ preprocessor = create_preprocessor(x_train)
 x_train_prepared = preprocessor.fit_transform(x_train)
 X_val_prepared = preprocessor.transform(x_val)
 x_test_prepared = preprocessor.transform(x_test)
-
-from src.train import train_logistic_regression
+from src.train import (
+    train_logistic_regression,
+    train_random_forest,
+    save_model
+)
 model = train_logistic_regression(
     x_train_prepared,
     y_train
@@ -186,3 +189,59 @@ print("\n--- Vérification finale ---")
 print("Valeur réelle :", y_test.iloc[0])
 print("Prédiction :", prediction[0])
 print("Probabilité de fraude :", probability[0])
+
+random_forest = train_random_forest(
+    x_train_prepared,
+    y_train
+)
+
+print("Random Forest entraîné avec succès.")
+
+rf_val_proba = random_forest.predict_proba(X_val_prepared)[:, 1]
+
+import numpy as np
+
+best_threshold = 0
+best_f1 = 0
+
+for threshold in np.arange(0.01, 1.00, 0.01):
+    rf_val_pred = (rf_val_proba >= threshold).astype(int)
+
+    accuracy, precision, recall, f1 = evaluate_model(
+        y_val,
+        rf_val_pred
+    )
+
+    if f1 > best_f1:
+        best_f1 = f1
+        best_threshold = threshold
+
+print("\n--- Meilleur seuil Random Forest ---")
+print("Seuil :", best_threshold)
+print("F1-score :", best_f1)
+
+rf_test_proba = random_forest.predict_proba(x_test_prepared)[:, 1]
+
+rf_test_pred = (rf_test_proba >= best_threshold).astype(int)
+
+accuracy, precision, recall, f1 = evaluate_model(
+    y_test,
+    rf_test_pred
+)
+
+print("\n--- Évaluation finale Random Forest ---")
+print("Seuil :", round(best_threshold, 2))
+print("Accuracy :", accuracy)
+print("Precision :", precision)
+print("Recall :", recall)
+print("F1-score :", f1)
+
+print("\nMatrice de confusion :")
+print(get_confusion_matrix(y_test, rf_test_pred))
+
+save_model(
+    random_forest,
+    "models/random_forest.pkl"
+)
+
+print("Random Forest sauvegardé.")

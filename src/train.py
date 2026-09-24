@@ -17,4 +17,17 @@ import joblib
 def save_model(model, path):
     joblib.dump(model, path)
 
-    
+from sklearn.ensemble import RandomForestClassifier
+
+
+def train_random_forest(x_train, y_train):
+    model = RandomForestClassifier(
+        n_estimators=100,
+        class_weight="balanced",
+        random_state=42,
+        n_jobs=-1
+    )
+
+    model.fit(x_train, y_train)
+
+    return model
