@@ -1,2 +1,13 @@
 data/raw/transactions.csv
 .venv/
+# Virtual environments
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated models
+models/*.pkl
