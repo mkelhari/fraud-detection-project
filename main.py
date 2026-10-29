@@ -12,7 +12,7 @@ from src.evaluate import (
     get_confusion_matrix,
     get_roc_auc
 )
-
+from sklearn.model_selection import train_test_split
 df = load_data("data/raw/transactions.csv")
 
 print(df.head())
@@ -476,16 +476,31 @@ from src.environment import FraudEnvironment
 
 print("\n--- Test environnement ---")
 
-env = FraudEnvironment(
-    states,
-    y_test.values
+# Une partie pour apprendre, une autre pour régler le seuil
+rl_train_states, tune_states, y_rl_train, y_tune = train_test_split(
+    val_states,
+    y_val.values,
+    test_size=0.5,
+    random_state=42,
+    stratify=y_val.values
 )
 
-state = env.reset()
+print("\n--- Séparation des données RL ---")
+print("États pour apprentissage :", rl_train_states.shape)
+print("États pour réglage :", tune_states.shape)
+print("Fraudes pour apprentissage :", int(y_rl_train.sum()))
+print("Fraudes pour réglage :", int(y_tune.sum()))
+
+train_env = FraudEnvironment(
+    rl_train_states,
+    y_rl_train
+)
+
+state = train_env.reset()
 
 print("Premier état :", state)
 
-next_state, reward, done = env.step(0)
+next_state, reward, done = train_env.step(0)
 
 print("État suivant :", next_state)
 print("Récompense :", reward)
@@ -497,7 +512,7 @@ print("\n--- Test agent Q-Learning ---")
 
 agent = QLearningAgent()
 
-state = env.reset()
+state = train_env.reset()
 
 print("État :", state)
 
@@ -574,7 +589,50 @@ for episode in range(n_episodes):
 
 print("\nEntraînement terminé.")
 print("Nombre d'états dans la Q-table :", len(agent.q_table))
+unknown_tune = sum(
+    agent.discretize_state(state) not in agent.q_table
+    for state in tune_states
+)
 
+print("États de réglage inconnus :", unknown_tune)
+from sklearn.metrics import (
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix
+)
+
+# Décisions de l'agent, sans exploration ni apprentissage
+hybrid_tune_predictions = [
+    agent.predict_action(state)
+    for state in tune_states
+]
+
+# Même ensemble de transactions, avec le Random Forest seul
+rf_tune_predictions = (
+    tune_states[:, 0] >= 0.21
+).astype(int)
+
+for name, predictions in [
+    ("Random Forest — RÉGLAGE", rf_tune_predictions),
+    ("Agent hybride — RÉGLAGE", hybrid_tune_predictions)
+]:
+    print(f"\n--- {name} ---")
+
+    print("Precision :", precision_score(
+        y_tune, predictions, zero_division=0
+    ))
+    print("Recall :", recall_score(
+        y_tune, predictions, zero_division=0
+    ))
+    print("F1-score :", f1_score(
+        y_tune, predictions, zero_division=0
+    ))
+
+    print("Matrice de confusion :")
+    print(confusion_matrix(
+        y_tune, predictions, labels=[0, 1]
+    ))
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
